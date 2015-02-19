@@ -63,6 +63,21 @@ geolite.load <- function() {
 	}
 }
 
+#' @export
+geolite.load.country <- function() {
+	if(length(names(geolite.location)) == 0 || length(names(geolite.blocks)) == 0) {
+		message("Loading GeoLiteCountry database files. This may take a while, please be patient...")
+		flush.console()
+		file.path = paste0(system.file(package="geocode"), "/data/GeoIPCountryWhois.csv.gz")
+		country.lookup <<- read.csv(file.path, as.is=TRUE, header=FALSE)
+		
+		names(country.lookup) = c('start', 'end', 'startIpNum', 'endIpNum', 'country', 'countrylong')
+		
+		message("Locations loaded...")
+		flush.console()
+	}
+}
+
 #'
 #' @export
 geolite.version <- function() {
@@ -109,6 +124,43 @@ geocode.ips <- function(ips) {
 				longitude=NA, 
 				metroCode=NA, 
 				areaCode=NA))
+		}
+	}
+	row.names(ans) = 1:nrow(ans)
+	return(ans)
+}
+
+
+#'
+#' @export
+geocode.ips.country <- function(ips) {
+	
+	message("Loading GeoLiteCountry database files. This may take a while, please be patient...")
+	flush.console()
+	file.path = paste0(system.file(package="geocode"), "/data/GeoIPCountryWhois.csv.gz")
+	country.lookup = read.csv(file.path, as.is=TRUE, header=FALSE)
+	
+	names(country.lookup) = c('start', 'end', 'startIpNum', 'endIpNum', 'country', 'countrylong')
+	
+	message("Locations loaded...")
+	
+	ans = data.frame()
+	for(ip in ips) {
+		parts = unlist(strsplit(ip, "\\."))
+		ipnum = 16777216*as.numeric(parts[1]) + 
+			65536*as.numeric(parts[2]) + 
+			256*as.numeric(parts[3]) + 
+			as.numeric(parts[4])
+		group1 = country.lookup[which(country.lookup$startIpNum < ipnum),]
+		group2 = group1[which(group1$endIpNum > ipnum),]
+		if(nrow(group2) > 0) {
+			ans = rbind(ans, 
+									cbind(ip=ip, country=group2$country)
+			)
+		} else {
+			ans = rbind(ans, data.frame(
+				ip=ip, 
+				country=NA))
 		}
 	}
 	row.names(ans) = 1:nrow(ans)
